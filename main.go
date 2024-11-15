@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"go-crud/go-crud/server"
+	"go-crud/server"
 	"net/http"
 	"time"
 )
