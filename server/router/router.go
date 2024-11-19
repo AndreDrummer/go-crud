@@ -59,10 +59,10 @@ func Handler() http.Handler {
 }
 
 func userOperations(r chi.Router) {
-	r.Get("/users", readUsers())
+	r.Get("/users", allUsers())
 	r.Get("/users/{id}", getUser())
 	r.Post("/users", createUser())
-	r.Patch("/users/{id}", updateUser())
+	r.Put("/users/{id}", updateUser())
 	r.Delete("/users/{id}", deleteUser())
 }
 
@@ -76,17 +76,18 @@ func getUser() http.HandlerFunc {
 
 		if err != nil {
 			slog.Error(fmt.Sprintf("an error occurred tryna get the user %v", userID), "error", err)
-			sendReponse(w, Response{Error: fmt.Sprintf("%v", err)}, http.StatusBadRequest)
+			sendReponse(w, Response{Error: fmt.Sprintf("%v", err)}, http.StatusNotFound)
 			return
 		}
 
 		var user model.User
 		if err := json.Unmarshal([]byte(userString), &user); err != nil {
 			slog.Error("error converting the response to JSON", "error", err)
-			sendReponse(w, Response{Error: "an unexpected error has occured"}, http.StatusBadRequest)
+			sendReponse(w, Response{Error: "The user information could not be retrieved"}, http.StatusInternalServerError)
 			return
 		}
 
+		slog.Info("User found")
 		sendReponse(w, Response{Data: user}, http.StatusOK)
 	}
 }
@@ -115,7 +116,7 @@ func createUser() http.HandlerFunc {
 			userJson, err := json.Marshal(user)
 
 			if err != nil {
-				sendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusBadRequest)
+				sendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusInternalServerError)
 				slog.Error("error parsing json user", "error", err)
 				return
 			}
@@ -124,21 +125,40 @@ func createUser() http.HandlerFunc {
 
 			if err := db.Insert(string(userJson)); err != nil {
 				slog.Error("error inserting user in DB", "error", err)
-				sendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusBadRequest)
+				sendReponse(w, Response{Error: fmt.Sprintf("There was an error while saving the user to the database: %v", err)}, http.StatusInternalServerError)
 				return
 			}
 
-			sendReponse(w, Response{Data: "User created successfully"}, http.StatusCreated)
+			sendReponse(w, Response{Data: user}, http.StatusCreated)
 			slog.Info("User created successfully")
 		}
 
 	}
 }
 
-func readUsers() http.HandlerFunc {
+func allUsers() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		fmt.Fprint(w, "Works!")
+		db := dbhandler.OpenDB()
+		data, err := db.FindAll()
+
+		if err != nil {
+			slog.Error("ERROR", "", err)
+			sendReponse(w, Response{Error: "The users information could not be retrieved"}, http.StatusInternalServerError)
+			return
+		}
+
+		users := make([]model.User, len(data))
+		for i, v := range data {
+			if err := json.Unmarshal([]byte(v), &users[i]); err != nil {
+				slog.Error("error converting the data from DB to JSON", "error", err)
+				sendReponse(w, Response{Error: "The users information could not be retrieved"}, http.StatusInternalServerError)
+				return
+			}
+		}
+
+		slog.Info("SUCESS", "Users", users)
+		sendReponse(w, Response{Data: users}, http.StatusOK)
 	}
 }
 

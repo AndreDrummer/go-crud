@@ -73,24 +73,23 @@ func OpenDB() *DB {
 	return &DB{}
 }
 
-func (d *DB) FindAll() (string, error) {
+func (d *DB) FindAll() ([]string, error) {
 	content, err := fileContent()
+	var output = make([]string, 0)
 
 	if err != nil {
-		return "", err
+		return []string{}, err
 	}
-
-	var stringBuilder strings.Builder
 
 	for _, v := range content {
 		if v == "" {
 			continue
 		} else {
-			stringBuilder.WriteString(fmt.Sprintf("%s\n", v))
+			output = append(output, v)
 		}
 	}
 
-	return stringBuilder.String(), nil
+	return output, nil
 }
 
 func (d *DB) FindByID(ID string) (string, error) {
@@ -111,7 +110,7 @@ func (d *DB) FindByID(ID string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("user of ID %s was not found", ID)
+	return "", fmt.Errorf("the user with the specified ID %s does not exist", ID)
 }
 
 func (d *DB) Insert(entry string) error {
