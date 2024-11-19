@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -57,18 +57,16 @@ func overrideFileContent(file *os.File, newcontent []string) {
 	}
 }
 
-func AnyToString(a any) string {
-	t := reflect.TypeOf(a)
-	v := reflect.ValueOf(a)
+// {"id":"a952983d-9857-4096-a376-feed20a20168","first_name":"André","last_name":"Silva","biography":"Lindão"}
+func GetEntryID(entry string) string {
+	re := regexp.MustCompile(`"([a-f0-9-]{36})"`)
+	match := re.FindStringSubmatch(entry)
 
-	var builder strings.Builder
-
-	for i := 0; i < t.NumField(); i++ {
-		fieldValue := v.Field(i)
-		builder.WriteString(fmt.Sprintf("%s ", fieldValue))
+	if len(match) > 1 {
+		return match[1]
+	} else {
+		return ""
 	}
-
-	return builder.String()
 }
 
 func OpenDB() *DB {
@@ -106,14 +104,14 @@ func (d *DB) FindByID(ID string) (string, error) {
 		if v == "" {
 			continue
 		} else {
-			vID := strings.Split(v, " ")[0]
+			vID := GetEntryID(v)
 			if vID == ID {
 				return v, nil
 			}
 		}
 	}
 
-	return "", nil
+	return "", fmt.Errorf("user of ID %s was not found", ID)
 }
 
 func (d *DB) Insert(entry string) error {

@@ -57,6 +57,7 @@ func Handler() http.Handler {
 	return handler
 
 }
+
 func userOperations(r chi.Router) {
 	r.Get("/users", readUsers())
 	r.Get("/users/{id}", getUser())
@@ -68,6 +69,25 @@ func userOperations(r chi.Router) {
 func getUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
+		userID := chi.URLParam(r, "id")
+
+		db := dbhandler.OpenDB()
+		userString, err := db.FindByID(userID)
+
+		if err != nil {
+			slog.Error(fmt.Sprintf("an error occurred tryna get the user %v", userID), "error", err)
+			sendReponse(w, Response{Error: fmt.Sprintf("%v", err)}, http.StatusBadRequest)
+			return
+		}
+
+		var user model.User
+		if err := json.Unmarshal([]byte(userString), &user); err != nil {
+			slog.Error("error converting the response to JSON", "error", err)
+			sendReponse(w, Response{Error: "an unexpected error has occured"}, http.StatusBadRequest)
+			return
+		}
+
+		sendReponse(w, Response{Data: user}, http.StatusOK)
 	}
 }
 
@@ -92,10 +112,18 @@ func createUser() http.HandlerFunc {
 			userID := intUUID.String()
 			user.ID = userID
 
-			userStringLine := dbhandler.AnyToString(user)
+			userJson, err := json.Marshal(user)
+
+			if err != nil {
+				sendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusBadRequest)
+				slog.Error("error parsing json user", "error", err)
+				return
+			}
+
 			db := dbhandler.OpenDB()
 
-			if err := db.Insert(userStringLine); err != nil {
+			if err := db.Insert(string(userJson)); err != nil {
+				slog.Error("error inserting user in DB", "error", err)
 				sendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusBadRequest)
 				return
 			}
