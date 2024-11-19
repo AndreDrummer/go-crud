@@ -5,12 +5,40 @@ import (
 	"fmt"
 	dbhandler "go-crud/server/db/handler"
 	"go-crud/server/model"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/google/uuid"
 )
+
+type Response struct {
+	Error string `json:"error,omitempty"`
+	Data  any    `json:"data,omitempty"`
+}
+
+func sendReponse(w http.ResponseWriter, resp Response, status int) {
+	w.Header().Set("Content-Type", "application/json")
+
+	data, err := json.Marshal(resp)
+
+	if err != nil {
+		slog.Error("error parsing response", "error", err)
+		sendReponse(
+			w,
+			Response{Error: "something went wrong!"},
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	w.WriteHeader(status)
+	if _, err := w.Write(data); err != nil {
+		slog.Error("error writing response", "error", err)
+		return
+	}
+}
 
 func Handler() http.Handler {
 	handler := chi.NewMux()
@@ -33,7 +61,7 @@ func userOperations(r chi.Router) {
 	r.Get("/users", readUsers())
 	r.Get("/users/{id}", getUser())
 	r.Post("/users", createUser())
-	r.Patch("/users", updateUser())
+	r.Patch("/users/{id}", updateUser())
 	r.Delete("/users/{id}", deleteUser())
 }
 
@@ -50,17 +78,32 @@ func createUser() http.HandlerFunc {
 		var user model.User
 
 		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
+			slog.Error(fmt.Sprintf("Invalid JSON: %v", err))
+			sendReponse(w, Response{Error: "Invalid request: body malformed"}, http.StatusBadRequest)
 			return
 		}
 
-		intUUID := uuid.New()
-		userID := intUUID.String()
-		user.ID = userID
+		if !user.IsValid() {
+			slog.Error("User Invalid: Missing required fields.")
+			sendReponse(w, Response{Error: "Please provide first name, last name and biography"}, http.StatusBadRequest)
+			return
+		} else {
+			intUUID := uuid.New()
+			userID := intUUID.String()
+			user.ID = userID
 
-		userStringLine := dbhandler.AnyToString(user)
-		db := dbhandler.OpenDB()
-		db.Insert(userStringLine)
+			userStringLine := dbhandler.AnyToString(user)
+			db := dbhandler.OpenDB()
+
+			if err := db.Insert(userStringLine); err != nil {
+				sendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusBadRequest)
+				return
+			}
+
+			sendReponse(w, Response{Data: "User created successfully"}, http.StatusCreated)
+			slog.Info("User created successfully")
+		}
+
 	}
 }
 

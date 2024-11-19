@@ -11,19 +11,25 @@ import (
 
 type DB struct{}
 
-func openFileWithPerm(flags int) *os.File {
+func openFileWithPerm(flags int) (*os.File, error) {
 	file, err := os.OpenFile("server/db/db.txt", flags|os.O_CREATE, 0644)
 
 	if err != nil {
 		slog.Error("error opening DB file", "error", err)
-		return nil
+		return nil, err
 	}
 
-	return file
+	return file, err
 }
 
-func fileContent() []string {
-	file := openFileWithPerm(os.O_RDONLY)
+func fileContent() ([]string, error) {
+	file, err := openFileWithPerm(os.O_RDONLY)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error reading FileContent: %v", err))
+		return nil, err
+	}
+
 	file.Seek(0, 0)
 	scanner := bufio.NewScanner(file)
 	var content []string
@@ -37,10 +43,10 @@ func fileContent() []string {
 			}
 		}
 
-		return content
+		return content, nil
 	}
 
-	return []string{}
+	return []string{}, nil
 }
 
 func overrideFileContent(file *os.File, newcontent []string) {
@@ -69,22 +75,79 @@ func OpenDB() *DB {
 	return &DB{}
 }
 
-func (d *DB) Insert(entry string) {
-	file := openFileWithPerm(os.O_APPEND | os.O_WRONLY)
+func (d *DB) FindAll() (string, error) {
+	content, err := fileContent()
+
+	if err != nil {
+		return "", err
+	}
+
+	var stringBuilder strings.Builder
+
+	for _, v := range content {
+		if v == "" {
+			continue
+		} else {
+			stringBuilder.WriteString(fmt.Sprintf("%s\n", v))
+		}
+	}
+
+	return stringBuilder.String(), nil
+}
+
+func (d *DB) FindByID(ID string) (string, error) {
+	content, err := fileContent()
+
+	if err != nil {
+		return "", err
+	}
+
+	for _, v := range content {
+		if v == "" {
+			continue
+		} else {
+			vID := strings.Split(v, " ")[0]
+			if vID == ID {
+				return v, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+func (d *DB) Insert(entry string) error {
+	file, err := openFileWithPerm(os.O_APPEND | os.O_WRONLY)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error inserting in DB: %v", err))
+		return err
+	}
 
 	if file != nil {
 		defer file.Close()
 		file.WriteString(fmt.Sprintf("\n%s", entry))
 	}
+
+	return nil
 }
 
-func (d *DB) Update(entry string) {
-	file := openFileWithPerm(os.O_RDWR)
+func (d *DB) Update(entry string) error {
+	file, err := openFileWithPerm(os.O_RDWR)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error updating from DB: %v", err))
+		return err
+	}
 
 	if file != nil {
 		defer file.Close()
 
-		fileContent := fileContent()
+		fileContent, err := fileContent()
+
+		if err != nil {
+			return err
+		}
 
 		var newContent []string
 		entryID := strings.Split(entry, " ")[0]
@@ -104,47 +167,27 @@ func (d *DB) Update(entry string) {
 
 		overrideFileContent(file, newContent)
 	}
+
+	return nil
 }
 
-func (d *DB) GetByID(ID string) string {
-	content := fileContent()
+func (d *DB) Delete(entry string) error {
+	file, err := openFileWithPerm(os.O_RDWR)
 
-	for _, v := range content {
-		if v == "" {
-			continue
-		} else {
-			vID := strings.Split(v, " ")[0]
-			if vID == ID {
-				return v
-			}
-		}
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error deleting from DB: %v", err))
+		return err
 	}
-
-	return ""
-}
-
-func (d *DB) GetAll() string {
-	content := fileContent()
-	var stringBuilder strings.Builder
-
-	for _, v := range content {
-		if v == "" {
-			continue
-		} else {
-			stringBuilder.WriteString(fmt.Sprintf("%s\n", v))
-		}
-	}
-
-	return stringBuilder.String()
-}
-
-func (d *DB) Delete(entry string) {
-	file := openFileWithPerm(os.O_RDWR)
 
 	if file != nil {
 		defer file.Close()
-		content := fileContent()
 		var newContent []string
+
+		content, err := fileContent()
+
+		if err != nil {
+			return err
+		}
 
 		for _, v := range content {
 			if v == "" || v == entry {
@@ -156,13 +199,21 @@ func (d *DB) Delete(entry string) {
 
 		overrideFileContent(file, newContent)
 	}
+	return nil
 }
 
-func (d *DB) Clear() {
-	file := openFileWithPerm(os.O_TRUNC)
+func (d *DB) Clear() error {
+	file, err := openFileWithPerm(os.O_TRUNC)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error clearing DB: %v", err))
+		return err
+	}
 
 	if file != nil {
 		defer file.Close()
 		file.Truncate(0)
 	}
+
+	return nil
 }
