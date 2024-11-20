@@ -7,6 +7,7 @@ import (
 	dberrors "go-crud/internal/server/app/db/errors"
 	dbhandler "go-crud/internal/server/app/db/handler"
 	"go-crud/internal/server/app/model"
+	"go-crud/internal/server/app/repository"
 	"log/slog"
 	"net/http"
 
@@ -42,32 +43,7 @@ func SendReponse(w http.ResponseWriter, resp Response, status int) {
 	}
 }
 
-func Handler() http.Handler {
-	handler := chi.NewMux()
-
-	handler.Use(middleware.Recoverer)
-	handler.Use(middleware.RequestID)
-	handler.Use(middleware.Logger)
-
-	handler.Route("/api", func(r chi.Router) {
-		r.Route("/v1", func(r chi.Router) {
-			userOperations(r)
-		})
-
-	})
-
-	return handler
-}
-
-func userOperations(r chi.Router) {
-	r.Get("/users", FindAll())
-	r.Get("/users/{id}", FindByID())
-	r.Post("/users", Insert())
-	r.Put("/users/{id}", Update())
-	r.Delete("/users/{id}", Delete())
-}
-
-func handleBodyRequest(w http.ResponseWriter, r *http.Request, user *model.User) error {
+func HandleBodyRequest(w http.ResponseWriter, r *http.Request, user *model.User) error {
 	if err := json.NewDecoder(r.Body).Decode(user); err != nil {
 		msgError := fmt.Sprintf("Invalid JSON: %v", err)
 
@@ -87,29 +63,51 @@ func handleBodyRequest(w http.ResponseWriter, r *http.Request, user *model.User)
 	return nil
 }
 
+func userOperations(r chi.Router) {
+	r.Get("/users", FindAll())
+	r.Get("/users/{id}", FindByID())
+	r.Post("/users", Insert())
+	r.Put("/users/{id}", Update())
+	r.Delete("/users/{id}", Delete())
+}
+
+func Handler() http.Handler {
+	handler := chi.NewMux()
+
+	handler.Use(middleware.Recoverer)
+	handler.Use(middleware.RequestID)
+	handler.Use(middleware.Logger)
+
+	handler.Route("/api", func(r chi.Router) {
+		r.Route("/v1", func(r chi.Router) {
+			userOperations(r)
+		})
+
+	})
+
+	return handler
+}
+
 func FindAll() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		db := dbhandler.OpenDB()
-		data, err := db.FindAll()
+
+		userList, err := repository.UserList()
 
 		if err != nil {
-			slog.Error("ERROR", "", err)
-			SendReponse(w, Response{Error: "The users information could not be retrieved"}, http.StatusInternalServerError)
-			return
-		}
-
-		users := make([]model.User, len(data))
-		for i, v := range data {
-			if err := json.Unmarshal([]byte(v), &users[i]); err != nil {
-				slog.Error("error converting the data from DB to JSON", "error", err)
+			if errors.Is(err, &dberrors.DBPathError{}) {
+				// TO DO: Improve logging schema
+				slog.Error("ERROR", "", err)
+				// TODO: Improve response sending
 				SendReponse(w, Response{Error: "The users information could not be retrieved"}, http.StatusInternalServerError)
-				return
+			} else {
+				slog.Error("ERROR", "", err)
+				SendReponse(w, Response{Error: "The users information could not be retrieved"}, http.StatusInternalServerError)
 			}
 		}
 
-		slog.Info("SUCESS", "Users", users)
-		SendReponse(w, Response{Data: users}, http.StatusOK)
+		slog.Info("SUCESS", "Users", userList)
+		SendReponse(w, Response{Data: userList}, http.StatusOK)
 	}
 }
 
@@ -151,7 +149,7 @@ func Insert() http.HandlerFunc {
 
 		var user model.User
 
-		if err := handleBodyRequest(w, r, &user); err == nil {
+		if err := HandleBodyRequest(w, r, &user); err == nil {
 			intUUID := uuid.New()
 			userID := intUUID.String()
 			user.ID = userID
@@ -184,7 +182,7 @@ func Update() http.HandlerFunc {
 
 		var user model.User
 
-		if err := handleBodyRequest(w, r, &user); err == nil {
+		if err := HandleBodyRequest(w, r, &user); err == nil {
 			userID := chi.URLParam(r, "id")
 			user.ID = userID
 
