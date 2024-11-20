@@ -7,7 +7,7 @@ import (
 	"go-crud/internal/server/app/model"
 )
 
-func UserList() ([]model.User, error) {
+func GetUserList() ([]model.User, error) {
 	db := dbhandler.OpenDB()
 	data, err := db.FindAll()
 
@@ -24,5 +24,21 @@ func UserList() ([]model.User, error) {
 	}
 
 	return users, nil
+}
 
+func GetUser(userID string) (model.User, error) {
+
+	db := dbhandler.OpenDB()
+	userString, err := db.FindByID(userID)
+
+	if err != nil {
+		return model.User{}, err
+	}
+
+	var user model.User
+	if err := json.Unmarshal([]byte(userString), &user); err != nil {
+		return model.User{}, errors.New("error converting the data from DB to JSON")
+	}
+
+	return user, nil
 }

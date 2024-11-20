@@ -173,7 +173,6 @@ func openFileWithPerm(flags int) (*os.File, error) {
 	file, err := os.OpenFile("internal/server/app/db/db.txt", flags|os.O_CREATE, 0644)
 
 	if err != nil {
-		slog.Error("ERROR", "DB Path", "Failed to open DB file.")
 		return nil, &dberrors.DBPathError{
 			Err: err,
 		}
@@ -186,7 +185,6 @@ func fileContent() ([]string, error) {
 	file, err := openFileWithPerm(os.O_RDONLY)
 
 	if err != nil {
-		slog.Error("Error reading FileContent")
 		return nil, err
 	}
 

@@ -92,21 +92,20 @@ func FindAll() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
-		userList, err := repository.UserList()
+		userList, err := repository.GetUserList()
 
 		if err != nil {
-			if errors.Is(err, &dberrors.DBPathError{}) {
-				// TO DO: Improve logging schema
-				slog.Error("ERROR", "", err)
-				// TODO: Improve response sending
-				SendReponse(w, Response{Error: "The users information could not be retrieved"}, http.StatusInternalServerError)
-			} else {
-				slog.Error("ERROR", "", err)
-				SendReponse(w, Response{Error: "The users information could not be retrieved"}, http.StatusInternalServerError)
-			}
+			slog.Error(err.Error())
+
+			SendReponse(
+				w,
+				Response{Error: "The users information could not be retrieved"},
+				http.StatusInternalServerError,
+			)
+			return
 		}
 
-		slog.Info("SUCESS", "Users", userList)
+		slog.Info(fmt.Sprintf("Users %v", userList))
 		SendReponse(w, Response{Data: userList}, http.StatusOK)
 	}
 }
@@ -116,28 +115,32 @@ func FindByID() http.HandlerFunc {
 		defer r.Body.Close()
 		userID := chi.URLParam(r, "id")
 
-		db := dbhandler.OpenDB()
-		userString, err := db.FindByID(userID)
+		user, err := repository.GetUser(userID)
 
 		if err != nil {
-			if errors.Is(err, &dberrors.DBNotFoundError{}) {
+			DBNotFoundError := &dberrors.DBNotFoundError{}
+
+			if errors.As(err, &DBNotFoundError) {
 				slog.Error("User was not found")
-				SendReponse(w, Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
+
+				SendReponse(
+					w,
+					Response{Error: "The user with the specified ID does not exist"},
+					http.StatusNotFound,
+				)
 			} else {
-				slog.Error(fmt.Sprintf("an error occurred tryna get the user %v", userID), "error", err)
-				SendReponse(w, Response{Error: "The user information could not be retrieved"}, http.StatusInternalServerError)
+				slog.Error(err.Error())
+
+				SendReponse(
+					w,
+					Response{Error: "The users information could not be retrieved"},
+					http.StatusInternalServerError,
+				)
 			}
 			return
 		}
 
-		var user model.User
-		if err := json.Unmarshal([]byte(userString), &user); err != nil {
-			slog.Error("error converting the response to JSON", "error", err)
-			SendReponse(w, Response{Error: "The user information could not be retrieved"}, http.StatusInternalServerError)
-			return
-		}
-
-		slog.Info("SUCCES", "User found", user)
+		slog.Info(fmt.Sprintf("User %v", user))
 		SendReponse(w, Response{Data: user}, http.StatusOK)
 
 	}
