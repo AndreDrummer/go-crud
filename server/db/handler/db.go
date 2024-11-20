@@ -6,10 +6,173 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
-	"strings"
 )
 
 type DB struct{}
+
+type DBNotFoundError struct{}
+
+func (d *DBNotFoundError) Error() string {
+	return "ID Not Found"
+}
+
+func OpenDB() *DB {
+	return &DB{}
+}
+
+func (d *DB) FindAll() ([]string, error) {
+	content, err := fileContent()
+	var output = make([]string, 0)
+
+	if err != nil {
+		return []string{}, err
+	}
+
+	for _, v := range content {
+		if v == "" {
+			continue
+		} else {
+			output = append(output, v)
+		}
+	}
+
+	return output, nil
+}
+
+func (d *DB) FindByID(ID string) (string, error) {
+	content, err := fileContent()
+
+	if err != nil {
+		return "", err
+	}
+
+	for _, v := range content {
+		if v == "" {
+			continue
+		} else {
+			vID := GetEntryID(v)
+			if vID == ID {
+				return v, nil
+			}
+		}
+	}
+
+	return "", &DBNotFoundError{}
+}
+
+func (d *DB) Insert(entry string) error {
+	file, err := openFileWithPerm(os.O_APPEND | os.O_WRONLY)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error inserting in DB: %v", err))
+		return err
+	}
+
+	if file != nil {
+		defer file.Close()
+		file.WriteString(fmt.Sprintf("\n%s", entry))
+	}
+
+	return nil
+}
+
+func (d *DB) Update(entryID, newEntry string) error {
+	file, err := openFileWithPerm(os.O_RDWR)
+	var found bool
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error updating from DB: %v", err))
+		return err
+	}
+
+	if file != nil {
+		defer file.Close()
+
+		fileContent, err := fileContent()
+
+		if err != nil {
+			return err
+		}
+
+		var newContent []string
+
+		for _, v := range fileContent {
+			if v == "" {
+				continue
+			} else {
+				vID := GetEntryID(v)
+				if vID == entryID {
+					found = true
+					newContent = append(newContent, newEntry)
+				} else {
+					newContent = append(newContent, v)
+				}
+			}
+		}
+
+		overrideFileContent(file, newContent)
+	}
+
+	if found {
+		return nil
+	} else {
+		return &DBNotFoundError{}
+	}
+}
+
+func (d *DB) Delete(ID string) error {
+	file, err := openFileWithPerm(os.O_RDWR)
+	var found bool
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error deleting from DB: %v", err))
+		return err
+	}
+
+	if file != nil {
+		defer file.Close()
+		var newContent []string
+
+		content, err := fileContent()
+
+		if err != nil {
+			return err
+		}
+
+		for _, v := range content {
+			entryID := GetEntryID(v)
+			if entryID == ID {
+				found = true
+				continue
+			} else {
+				newContent = append(newContent, v)
+			}
+		}
+
+		overrideFileContent(file, newContent)
+	}
+	if found {
+		return nil
+	} else {
+		return &DBNotFoundError{}
+	}
+}
+
+func (d *DB) Clear() error {
+	file, err := openFileWithPerm(os.O_TRUNC)
+
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error clearing DB: %v", err))
+		return err
+	}
+
+	if file != nil {
+		defer file.Close()
+		file.Truncate(0)
+	}
+
+	return nil
+}
 
 func openFileWithPerm(flags int) (*os.File, error) {
 	file, err := os.OpenFile("server/db/db.txt", flags|os.O_CREATE, 0644)
@@ -57,8 +220,11 @@ func overrideFileContent(file *os.File, newcontent []string) {
 	}
 }
 
-// {"id":"a952983d-9857-4096-a376-feed20a20168","first_name":"André","last_name":"Silva","biography":"Lindão"}
 func GetEntryID(entry string) string {
+	if entry == "" {
+		return ""
+	}
+
 	re := regexp.MustCompile(`"([a-f0-9-]{36})"`)
 	match := re.FindStringSubmatch(entry)
 
@@ -67,150 +233,4 @@ func GetEntryID(entry string) string {
 	} else {
 		return ""
 	}
-}
-
-func OpenDB() *DB {
-	return &DB{}
-}
-
-func (d *DB) FindAll() ([]string, error) {
-	content, err := fileContent()
-	var output = make([]string, 0)
-
-	if err != nil {
-		return []string{}, err
-	}
-
-	for _, v := range content {
-		if v == "" {
-			continue
-		} else {
-			output = append(output, v)
-		}
-	}
-
-	return output, nil
-}
-
-func (d *DB) FindByID(ID string) (string, error) {
-	content, err := fileContent()
-
-	if err != nil {
-		return "", err
-	}
-
-	for _, v := range content {
-		if v == "" {
-			continue
-		} else {
-			vID := GetEntryID(v)
-			if vID == ID {
-				return v, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("the user with the specified ID %s does not exist", ID)
-}
-
-func (d *DB) Insert(entry string) error {
-	file, err := openFileWithPerm(os.O_APPEND | os.O_WRONLY)
-
-	if err != nil {
-		slog.Error(fmt.Sprintf("Error inserting in DB: %v", err))
-		return err
-	}
-
-	if file != nil {
-		defer file.Close()
-		file.WriteString(fmt.Sprintf("\n%s", entry))
-	}
-
-	return nil
-}
-
-func (d *DB) Update(entry string) error {
-	file, err := openFileWithPerm(os.O_RDWR)
-
-	if err != nil {
-		slog.Error(fmt.Sprintf("Error updating from DB: %v", err))
-		return err
-	}
-
-	if file != nil {
-		defer file.Close()
-
-		fileContent, err := fileContent()
-
-		if err != nil {
-			return err
-		}
-
-		var newContent []string
-		entryID := strings.Split(entry, " ")[0]
-
-		for _, v := range fileContent {
-			if v == "" {
-				continue
-			} else {
-				vID := strings.Split(v, " ")[0]
-				if vID != "" && vID == entryID {
-					newContent = append(newContent, entry)
-				} else {
-					newContent = append(newContent, v)
-				}
-			}
-		}
-
-		overrideFileContent(file, newContent)
-	}
-
-	return nil
-}
-
-func (d *DB) Delete(entry string) error {
-	file, err := openFileWithPerm(os.O_RDWR)
-
-	if err != nil {
-		slog.Error(fmt.Sprintf("Error deleting from DB: %v", err))
-		return err
-	}
-
-	if file != nil {
-		defer file.Close()
-		var newContent []string
-
-		content, err := fileContent()
-
-		if err != nil {
-			return err
-		}
-
-		for _, v := range content {
-			if v == "" || v == entry {
-				continue
-			} else {
-				newContent = append(newContent, v)
-			}
-		}
-
-		overrideFileContent(file, newContent)
-	}
-	return nil
-}
-
-func (d *DB) Clear() error {
-	file, err := openFileWithPerm(os.O_TRUNC)
-
-	if err != nil {
-		slog.Error(fmt.Sprintf("Error clearing DB: %v", err))
-		return err
-	}
-
-	if file != nil {
-		defer file.Close()
-		file.Truncate(0)
-	}
-
-	return nil
 }
