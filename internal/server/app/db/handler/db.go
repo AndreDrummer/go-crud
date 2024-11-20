@@ -3,18 +3,13 @@ package dbhandler
 import (
 	"bufio"
 	"fmt"
+	dberrors "go-crud/internal/server/app/db/errors"
 	"log/slog"
 	"os"
 	"regexp"
 )
 
 type DB struct{}
-
-type DBNotFoundError struct{}
-
-func (d *DBNotFoundError) Error() string {
-	return "ID Not Found"
-}
 
 func OpenDB() *DB {
 	return &DB{}
@@ -57,7 +52,7 @@ func (d *DB) FindByID(ID string) (string, error) {
 		}
 	}
 
-	return "", &DBNotFoundError{}
+	return "", &dberrors.DBNotFoundError{}
 }
 
 func (d *DB) Insert(entry string) error {
@@ -116,7 +111,7 @@ func (d *DB) Update(entryID, newEntry string) error {
 	if found {
 		return nil
 	} else {
-		return &DBNotFoundError{}
+		return &dberrors.DBNotFoundError{}
 	}
 }
 
@@ -154,7 +149,7 @@ func (d *DB) Delete(ID string) error {
 	if found {
 		return nil
 	} else {
-		return &DBNotFoundError{}
+		return &dberrors.DBNotFoundError{}
 	}
 }
 
@@ -175,7 +170,7 @@ func (d *DB) Clear() error {
 }
 
 func openFileWithPerm(flags int) (*os.File, error) {
-	file, err := os.OpenFile("server/db/db.txt", flags|os.O_CREATE, 0644)
+	file, err := os.OpenFile("internal/server/app/db/db.txt", flags|os.O_CREATE, 0644)
 
 	if err != nil {
 		slog.Error("error opening DB file", "error", err)

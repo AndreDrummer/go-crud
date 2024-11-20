@@ -1,7 +1,7 @@
 package main
 
 import (
-	"go-crud/server"
+	"go-crud/internal/server"
 	"log/slog"
 )
 

@@ -1,8 +1,0 @@
-{"id":"0709b09b-0d74-4056-bdf7-d04191d1acdf","first_name":"André","last_name":"Silva","biography":"Lindão"}
-{"id":"002ecec1-d4ae-4abf-85cd-40160130a476","first_name":"André","last_name":"Silva","biography":"Lindão"}
-{"id":"681f4fdf-de2f-489a-b243-cbeda477c768","first_name":"André","last_name":"Silva","biography":"Lindão"}
-{"id":"42b7ca17-f5d2-4b0a-b92d-87f87d0c97ce","first_name":"André","last_name":"Silva","biography":"Lindão"}
-{"id":"5a3ac03b-a3bb-4118-b6ad-cf0719eb840e","first_name":"André","last_name":"Silva","biography":"Lindão"}
-{"id":"53bc1300-2fe1-4df1-873e-979a0b5d3ef5","first_name":"Bartolomeu Bueno","last_name":"da Silva","biography":"Cagão"}
-{"id":"bcf5dc95-a362-4440-b6e7-29e05c3a1c47","first_name":"Bartolomeu Bueno","last_name":"da Silva","biography":"Cagão"}
-{"id":"df5c7d77-9948-41d3-96de-3589ea21eec2","first_name":"Bartolomeu Bueno","last_name":"da Silva","biography":"Cagão"}
