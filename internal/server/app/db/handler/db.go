@@ -45,7 +45,7 @@ func (d *DB) FindByID(ID string) (string, error) {
 		if v == "" {
 			continue
 		} else {
-			vID := GetEntryID(v)
+			vID := getEntryID(v)
 			if vID == ID {
 				return v, nil
 			}
@@ -96,7 +96,7 @@ func (d *DB) Update(entryID, newEntry string) error {
 			if v == "" {
 				continue
 			} else {
-				vID := GetEntryID(v)
+				vID := getEntryID(v)
 				if vID == entryID {
 					found = true
 					newContent = append(newContent, newEntry)
@@ -135,7 +135,7 @@ func (d *DB) Delete(ID string) error {
 		}
 
 		for _, v := range content {
-			entryID := GetEntryID(v)
+			entryID := getEntryID(v)
 			if entryID == ID {
 				found = true
 				continue
@@ -214,7 +214,7 @@ func overrideFileContent(file *os.File, newcontent []string) {
 	}
 }
 
-func GetEntryID(entry string) string {
+func getEntryID(entry string) string {
 	if entry == "" {
 		return ""
 	}

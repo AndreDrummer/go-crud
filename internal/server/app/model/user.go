@@ -1,6 +1,9 @@
 package model
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type User struct {
 	ID        string `json:"id"`
@@ -13,4 +16,8 @@ func (u *User) IsValid() bool {
 	return u.FirstName != "" && strings.TrimSpace(u.FirstName) != "" &&
 		u.Biography != "" && strings.TrimSpace(u.Biography) != "" &&
 		u.LastName != "" && strings.TrimSpace(u.LastName) != ""
+}
+
+func (u User) ToString() string {
+	return fmt.Sprintf("Entity of type %T", u)
 }

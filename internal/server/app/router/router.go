@@ -61,15 +61,15 @@ func handleBodyRequest(w http.ResponseWriter, r *http.Request, user *model.User)
 	return nil
 }
 
-func userOperations(r chi.Router) {
-	r.Get("/users", FindAll())
-	r.Get("/users/{id}", FindByID())
-	r.Post("/users", Insert())
-	r.Put("/users/{id}", Update())
-	r.Delete("/users/{id}", Delete())
+func userOperations(r chi.Router, repository repository.Repository) {
+	r.Get("/users", FindAll(repository))
+	r.Get("/users/{id}", FindByID(repository))
+	r.Post("/users", Insert(repository))
+	r.Put("/users/{id}", Update(repository))
+	r.Delete("/users/{id}", Delete(repository))
 }
 
-func Handler() http.Handler {
+func Handler(repositories map[string]repository.Repository) http.Handler {
 	handler := chi.NewMux()
 
 	handler.Use(middleware.Recoverer)
@@ -78,7 +78,7 @@ func Handler() http.Handler {
 
 	handler.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
-			userOperations(r)
+			userOperations(r, repositories[repository.User])
 		})
 
 	})
@@ -86,11 +86,11 @@ func Handler() http.Handler {
 	return handler
 }
 
-func FindAll() http.HandlerFunc {
+func FindAll(repository repository.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
-		userList, err := repository.GetUserList()
+		userList, err := repository.GetAll()
 
 		if err != nil {
 			slog.Error(err.Error())
@@ -108,12 +108,12 @@ func FindAll() http.HandlerFunc {
 	}
 }
 
-func FindByID() http.HandlerFunc {
+func FindByID(repository repository.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		userID := chi.URLParam(r, "id")
 
-		user, err := repository.GetUser(userID)
+		user, err := repository.GetOne(userID)
 
 		if err != nil {
 			NotFoundError := &customerrors.NotFoundError{}
@@ -144,14 +144,14 @@ func FindByID() http.HandlerFunc {
 	}
 }
 
-func Insert() http.HandlerFunc {
+func Insert(repository repository.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
 		var user model.User
 
 		if err := handleBodyRequest(w, r, &user); err == nil {
-			err := repository.InsertUser(&user)
+			err := repository.Insert(&user)
 
 			if err != nil {
 				slog.Error(err.Error())
@@ -169,7 +169,7 @@ func Insert() http.HandlerFunc {
 	}
 }
 
-func Update() http.HandlerFunc {
+func Update(repository repository.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
@@ -179,7 +179,7 @@ func Update() http.HandlerFunc {
 			userID := chi.URLParam(r, "id")
 			user.ID = userID
 
-			err := repository.UpdateUser(&user)
+			err := repository.Update(&user)
 
 			if err != nil {
 				NotFoundError := &customerrors.NotFoundError{}
@@ -199,12 +199,12 @@ func Update() http.HandlerFunc {
 	}
 }
 
-func Delete() http.HandlerFunc {
+func Delete(repository repository.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		userID := chi.URLParam(r, "id")
 
-		err := repository.DeleteUser(userID)
+		err := repository.Delete(userID)
 
 		if err != nil {
 			NotFoundError := &customerrors.NotFoundError{}
