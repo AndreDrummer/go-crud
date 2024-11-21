@@ -19,5 +19,5 @@ func (u *User) IsValid() bool {
 }
 
 func (u User) ToString() string {
-	return fmt.Sprintf("Entity of type %T", u)
+	return fmt.Sprintf("Document of type %T", u)
 }

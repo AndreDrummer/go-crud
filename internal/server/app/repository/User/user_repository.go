@@ -106,7 +106,7 @@ func (u *UserRepository) updateUserOnVolatileMemory(userID, userData string) {
 	}
 }
 
-func (u *UserRepository) GetAll() ([]repository.Entity, error) {
+func (u *UserRepository) GetAll() ([]repository.Document, error) {
 	var data []string
 
 	memData := u.getAllUsersFromVolatileMemory()
@@ -115,7 +115,7 @@ func (u *UserRepository) GetAll() ([]repository.Entity, error) {
 		dbData, err := getAllUsersFromPersistentMemory()
 
 		if err != nil {
-			return []repository.Entity{}, err
+			return []repository.Document{}, err
 		}
 
 		data = dbData
@@ -127,23 +127,23 @@ func (u *UserRepository) GetAll() ([]repository.Entity, error) {
 
 	for i, v := range data {
 		if err := json.Unmarshal([]byte(v), &users[i]); err != nil {
-			return []repository.Entity{}, &customerrors.JsonDecodingError{
+			return []repository.Document{}, &customerrors.JsonDecodingError{
 				Type: fmt.Sprintf("%T", users),
 				Err:  err,
 			}
 		}
 	}
 
-	entities := make([]repository.Entity, len(users))
+	entities := make([]repository.Document, len(users))
 
 	for i, v := range users {
-		entities[i] = repository.Entity(v)
+		entities[i] = repository.Document(v)
 	}
 
 	return entities, nil
 }
 
-func (u *UserRepository) GetOne(userID string) (repository.Entity, error) {
+func (u *UserRepository) GetOne(userID string) (repository.Document, error) {
 	var userData string
 
 	memData := u.getUserFromVolatileMemory(userID)
@@ -172,11 +172,11 @@ func (u *UserRepository) GetOne(userID string) (repository.Entity, error) {
 	return user, nil
 }
 
-func (u *UserRepository) Insert(entity repository.Entity) error {
-	user, ok := entity.(*model.User)
+func (u *UserRepository) Insert(document repository.Document) error {
+	user, ok := document.(*model.User)
 
 	if !ok {
-		return fmt.Errorf("invalid entity type: expected *model.User, received %T", entity)
+		return fmt.Errorf("invalid document type: expected *model.User, received %T", document)
 	}
 
 	intUUID := uuid.New()
@@ -200,11 +200,11 @@ func (u *UserRepository) Insert(entity repository.Entity) error {
 	u.insertUsersOnVolatileMemory(user.ID, string(userJson))
 	return nil
 }
-func (u *UserRepository) Update(entity repository.Entity) error {
-	user, ok := entity.(*model.User)
+func (u *UserRepository) Update(document repository.Document) error {
+	user, ok := document.(*model.User)
 
 	if !ok {
-		return fmt.Errorf("invalid entity type: expected *model.User, received %T", entity)
+		return fmt.Errorf("invalid document type: expected *model.User, received %T", document)
 	}
 
 	userJson, err := json.Marshal(user)

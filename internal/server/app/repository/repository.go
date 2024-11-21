@@ -1,15 +1,15 @@
 package repository
 
-type Entity interface {
+type Document interface {
 	ToString() string
 }
 
 type Repository interface {
-	GetAll() ([]Entity, error)
-	GetOne(entityID string) (Entity, error)
-	Insert(Entity) error
-	Update(Entity) error
-	Delete(entityID string) error
+	GetAll() ([]Document, error)
+	GetOne(documentID string) (Document, error)
+	Insert(Document) error
+	Update(Document) error
+	Delete(documentID string) error
 }
 
 const (

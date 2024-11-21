@@ -8,7 +8,7 @@ type NotFoundError struct {
 
 func (n *NotFoundError) Error() string {
 	if n.Msg == "" {
-		return "Entity Not Found"
+		return "Not Found"
 	} else {
 		return n.Msg
 	}
