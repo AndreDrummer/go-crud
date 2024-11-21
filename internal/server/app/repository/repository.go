@@ -10,12 +10,59 @@ import (
 	"github.com/google/uuid"
 )
 
-func GetUserList() ([]model.User, error) {
-	db := dbhandler.OpenDB()
-	data, err := db.FindAll()
+var volatile map[string]string
 
-	if err != nil {
-		return []model.User{}, err
+func insertUsersOnVolatileMemory(userID, userData string) {
+	volatile[userID] = userData
+}
+
+func getAllUsersFromVolatileMemory() []string {
+	var userData []string = []string{}
+
+	for _, v := range volatile {
+		userData = append(userData, v)
+	}
+
+	return userData
+}
+
+func getUserFromVolatileMemory(userID string) string {
+	return volatile[userID]
+}
+
+func deleteUserFromVolatileMemory(userID string) bool {
+	var removeSuccessfully bool
+
+	if _, ok := volatile[userID]; ok {
+		delete(volatile, userID)
+		removeSuccessfully = true
+	}
+
+	return removeSuccessfully
+}
+
+func updateUserOnVolatileMemory(userID, userData string) {
+	if _, ok := volatile[userID]; ok {
+		volatile[userID] = userData
+	}
+}
+
+func GetUserList() ([]model.User, error) {
+	var data []string
+
+	memData := getAllUsersFromVolatileMemory()
+
+	if len(memData) == 0 {
+		db := dbhandler.OpenDB()
+		dbData, err := db.FindAll()
+
+		if err != nil {
+			return []model.User{}, err
+		}
+
+		data = dbData
+	} else {
+		data = memData
 	}
 
 	users := make([]model.User, len(data))
@@ -33,16 +80,25 @@ func GetUserList() ([]model.User, error) {
 }
 
 func GetUser(userID string) (model.User, error) {
+	var userData string
 
-	db := dbhandler.OpenDB()
-	userString, err := db.FindByID(userID)
+	memData := getUserFromVolatileMemory(userID)
 
-	if err != nil {
-		return model.User{}, err
+	if len(memData) == 0 {
+		db := dbhandler.OpenDB()
+		dbData, err := db.FindByID(userID)
+
+		if err != nil {
+			return model.User{}, err
+		}
+
+		userData = dbData
+	} else {
+		userData = memData
 	}
 
 	var user model.User
-	if err := json.Unmarshal([]byte(userString), &user); err != nil {
+	if err := json.Unmarshal([]byte(userData), &user); err != nil {
 		return model.User{}, &customerrors.JsonDecodingError{
 			Type: fmt.Sprintf("%T", user),
 			Err:  err,
@@ -71,6 +127,7 @@ func InsertUser(user *model.User) error {
 		return err
 	}
 
+	insertUsersOnVolatileMemory(user.ID, string(userJson))
 	return nil
 }
 
@@ -89,10 +146,15 @@ func UpdateUser(user *model.User) error {
 		return err
 	}
 
+	updateUserOnVolatileMemory(user.ID, string(userJson))
+
 	return nil
 }
 
 func DeleteUser(userID string) error {
+
+	deleteUserFromVolatileMemory(userID)
+
 	db := dbhandler.OpenDB()
 
 	if err := db.Delete(userID); err != nil {
