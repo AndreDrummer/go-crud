@@ -2,6 +2,7 @@ package userrepository
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	dbhandler "go-crud/internal/server/app/db/handler"
 	customerrors "go-crud/internal/server/app/errors"
@@ -71,6 +72,15 @@ func NewUserRepository() *UserRepository {
 	return ur
 }
 
+func (u *UserRepository) CheckInitialization() error {
+	if !u.isInitialized {
+		slog.Error("UserRepositoryRepository was not initialized")
+		return errors.New("UserRepository was not initialized: You need to call NewUserRepository before calling any of its methods")
+	}
+
+	return nil
+}
+
 func (u *UserRepository) insertUsersOnVolatileMemory(userID, userData string) {
 	u.volatileMem[userID] = userData
 }
@@ -107,6 +117,8 @@ func (u *UserRepository) updateUserOnVolatileMemory(userID, userData string) {
 }
 
 func (u *UserRepository) GetAll() ([]repository.Document, error) {
+	u.CheckInitialization()
+
 	var data []string
 
 	memData := u.getAllUsersFromVolatileMemory()
@@ -144,6 +156,8 @@ func (u *UserRepository) GetAll() ([]repository.Document, error) {
 }
 
 func (u *UserRepository) GetOne(userID string) (repository.Document, error) {
+	u.CheckInitialization()
+
 	var userData string
 
 	memData := u.getUserFromVolatileMemory(userID)
@@ -173,6 +187,8 @@ func (u *UserRepository) GetOne(userID string) (repository.Document, error) {
 }
 
 func (u *UserRepository) Insert(document repository.Document) error {
+	u.CheckInitialization()
+
 	user, ok := document.(*model.User)
 
 	if !ok {
@@ -201,6 +217,8 @@ func (u *UserRepository) Insert(document repository.Document) error {
 	return nil
 }
 func (u *UserRepository) Update(document repository.Document) error {
+	u.CheckInitialization()
+
 	user, ok := document.(*model.User)
 
 	if !ok {
@@ -227,6 +245,7 @@ func (u *UserRepository) Update(document repository.Document) error {
 }
 
 func (u *UserRepository) Delete(userID string) error {
+	u.CheckInitialization()
 
 	u.deleteUserFromVolatileMemory(userID)
 

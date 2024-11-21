@@ -5,6 +5,7 @@ type Document interface {
 }
 
 type Repository interface {
+	CheckInitialization() error
 	GetAll() ([]Document, error)
 	GetOne(documentID string) (Document, error)
 	Insert(Document) error
