@@ -131,7 +131,7 @@ func FindByID() http.HandlerFunc {
 
 				sendReponse(
 					w,
-					Response{Error: "The users information could not be retrieved"},
+					Response{Error: "The user information could not be retrieved"},
 					http.StatusInternalServerError,
 				)
 			}
@@ -182,7 +182,8 @@ func Update() http.HandlerFunc {
 			err := repository.UpdateUser(&user)
 
 			if err != nil {
-				if errors.Is(err, &customerrors.NotFoundError{}) {
+				NotFoundError := &customerrors.NotFoundError{}
+				if errors.As(err, &NotFoundError) {
 					slog.Error("User was not found")
 					sendReponse(w, Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
 				} else {
@@ -206,7 +207,8 @@ func Delete() http.HandlerFunc {
 		err := repository.DeleteUser(userID)
 
 		if err != nil {
-			if errors.Is(err, &customerrors.NotFoundError{}) {
+			NotFoundError := &customerrors.NotFoundError{}
+			if errors.As(err, &NotFoundError) {
 				slog.Error("User was not found")
 				sendReponse(w, Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
 			} else {
