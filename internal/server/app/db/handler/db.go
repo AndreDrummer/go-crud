@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	dberrors "go-crud/internal/server/app/db/errors"
-	"log/slog"
+	customerrors "go-crud/internal/server/app/errors"
 	"os"
 	"regexp"
 )
@@ -52,20 +52,22 @@ func (d *DB) FindByID(ID string) (string, error) {
 		}
 	}
 
-	return "", &dberrors.DBNotFoundError{}
+	return "", &customerrors.NotFoundError{}
 }
 
 func (d *DB) Insert(entry string) error {
 	file, err := openFileWithPerm(os.O_APPEND | os.O_WRONLY)
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error inserting in DB: %v", err))
 		return err
 	}
 
 	if file != nil {
 		defer file.Close()
-		file.WriteString(fmt.Sprintf("\n%s", entry))
+		_, err := file.WriteString(fmt.Sprintf("\n%s", entry))
+		if err != nil {
+			return fmt.Errorf("error inserting in DB: %v", err)
+		}
 	}
 
 	return nil
@@ -76,7 +78,6 @@ func (d *DB) Update(entryID, newEntry string) error {
 	var found bool
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error updating from DB: %v", err))
 		return err
 	}
 
@@ -111,7 +112,7 @@ func (d *DB) Update(entryID, newEntry string) error {
 	if found {
 		return nil
 	} else {
-		return &dberrors.DBNotFoundError{}
+		return &customerrors.NotFoundError{}
 	}
 }
 
@@ -120,7 +121,6 @@ func (d *DB) Delete(ID string) error {
 	var found bool
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error deleting from DB: %v", err))
 		return err
 	}
 
@@ -149,7 +149,7 @@ func (d *DB) Delete(ID string) error {
 	if found {
 		return nil
 	} else {
-		return &dberrors.DBNotFoundError{}
+		return &customerrors.NotFoundError{}
 	}
 }
 
@@ -157,7 +157,6 @@ func (d *DB) Clear() error {
 	file, err := openFileWithPerm(os.O_TRUNC)
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error clearing DB: %v", err))
 		return err
 	}
 

@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	dberrors "go-crud/internal/server/app/db/errors"
-	dbhandler "go-crud/internal/server/app/db/handler"
+	customerrors "go-crud/internal/server/app/errors"
 	"go-crud/internal/server/app/model"
 	"go-crud/internal/server/app/repository"
 	"log/slog"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/google/uuid"
 )
 
 type Response struct {
@@ -21,14 +19,14 @@ type Response struct {
 	Data  any    `json:"data,omitempty"`
 }
 
-func SendReponse(w http.ResponseWriter, resp Response, status int) {
+func sendReponse(w http.ResponseWriter, resp Response, status int) {
 	w.Header().Set("Content-Type", "application/json")
 
 	data, err := json.Marshal(resp)
 
 	if err != nil {
 		slog.Error("error parsing response", "error", err)
-		SendReponse(
+		sendReponse(
 			w,
 			Response{Error: "something went wrong!"},
 			http.StatusInternalServerError,
@@ -43,12 +41,12 @@ func SendReponse(w http.ResponseWriter, resp Response, status int) {
 	}
 }
 
-func HandleBodyRequest(w http.ResponseWriter, r *http.Request, user *model.User) error {
+func handleBodyRequest(w http.ResponseWriter, r *http.Request, user *model.User) error {
 	if err := json.NewDecoder(r.Body).Decode(user); err != nil {
 		msgError := fmt.Sprintf("Invalid JSON: %v", err)
 
 		slog.Error(msgError)
-		SendReponse(w, Response{Error: "Invalid request: body malformed"}, http.StatusBadRequest)
+		sendReponse(w, Response{Error: "Invalid request: body malformed"}, http.StatusBadRequest)
 		return errors.New(msgError)
 	}
 
@@ -56,7 +54,7 @@ func HandleBodyRequest(w http.ResponseWriter, r *http.Request, user *model.User)
 		msgError := "user Invalid: Missing required fields"
 
 		slog.Error(msgError)
-		SendReponse(w, Response{Error: "Please provide first name, last name and biography for the user"}, http.StatusBadRequest)
+		sendReponse(w, Response{Error: "Please provide first name, last name and biography for the user"}, http.StatusBadRequest)
 		return errors.New(msgError)
 	}
 
@@ -97,7 +95,7 @@ func FindAll() http.HandlerFunc {
 		if err != nil {
 			slog.Error(err.Error())
 
-			SendReponse(
+			sendReponse(
 				w,
 				Response{Error: "The users information could not be retrieved"},
 				http.StatusInternalServerError,
@@ -106,7 +104,7 @@ func FindAll() http.HandlerFunc {
 		}
 
 		slog.Info(fmt.Sprintf("Users %v", userList))
-		SendReponse(w, Response{Data: userList}, http.StatusOK)
+		sendReponse(w, Response{Data: userList}, http.StatusOK)
 	}
 }
 
@@ -118,12 +116,12 @@ func FindByID() http.HandlerFunc {
 		user, err := repository.GetUser(userID)
 
 		if err != nil {
-			DBNotFoundError := &dberrors.DBNotFoundError{}
+			NotFoundError := &customerrors.NotFoundError{}
 
-			if errors.As(err, &DBNotFoundError) {
+			if errors.As(err, &NotFoundError) {
 				slog.Error("User was not found")
 
-				SendReponse(
+				sendReponse(
 					w,
 					Response{Error: "The user with the specified ID does not exist"},
 					http.StatusNotFound,
@@ -131,7 +129,7 @@ func FindByID() http.HandlerFunc {
 			} else {
 				slog.Error(err.Error())
 
-				SendReponse(
+				sendReponse(
 					w,
 					Response{Error: "The users information could not be retrieved"},
 					http.StatusInternalServerError,
@@ -141,7 +139,7 @@ func FindByID() http.HandlerFunc {
 		}
 
 		slog.Info(fmt.Sprintf("User %v", user))
-		SendReponse(w, Response{Data: user}, http.StatusOK)
+		sendReponse(w, Response{Data: user}, http.StatusOK)
 
 	}
 }
@@ -152,29 +150,21 @@ func Insert() http.HandlerFunc {
 
 		var user model.User
 
-		if err := HandleBodyRequest(w, r, &user); err == nil {
-			intUUID := uuid.New()
-			userID := intUUID.String()
-			user.ID = userID
-
-			userJson, err := json.Marshal(user)
+		if err := handleBodyRequest(w, r, &user); err == nil {
+			err := repository.InsertUser(&user)
 
 			if err != nil {
-				SendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusInternalServerError)
-				slog.Error("error parsing json user", "error", err)
+				slog.Error(err.Error())
+				sendReponse(
+					w,
+					Response{Error: "There was an error while saving the user to the database"},
+					http.StatusInternalServerError,
+				)
 				return
 			}
 
-			db := dbhandler.OpenDB()
-
-			if err := db.Insert(string(userJson)); err != nil {
-				slog.Error("error inserting user in DB", "error", err)
-				SendReponse(w, Response{Error: "There was an error while saving the user to the database"}, http.StatusInternalServerError)
-				return
-			}
-
-			slog.Info("SUCCES", "User created succesfully", user)
-			SendReponse(w, Response{Data: user}, http.StatusCreated)
+			slog.Info(fmt.Sprintf("User created succesfully %v", user))
+			sendReponse(w, Response{Data: user}, http.StatusCreated)
 		}
 	}
 }
@@ -185,31 +175,24 @@ func Update() http.HandlerFunc {
 
 		var user model.User
 
-		if err := HandleBodyRequest(w, r, &user); err == nil {
+		if err := handleBodyRequest(w, r, &user); err == nil {
 			userID := chi.URLParam(r, "id")
 			user.ID = userID
 
-			userJson, err := json.Marshal(user)
+			err := repository.UpdateUser(&user)
+
 			if err != nil {
-				SendReponse(w, Response{Error: fmt.Sprintf("database error: %v", err)}, http.StatusInternalServerError)
-				slog.Error("error parsing json user", "error", err)
-				return
-			}
-
-			db := dbhandler.OpenDB()
-
-			if err := db.Update(userID, string(userJson)); err != nil {
-				if errors.Is(err, &dberrors.DBNotFoundError{}) {
+				if errors.Is(err, &customerrors.NotFoundError{}) {
 					slog.Error("User was not found")
-					SendReponse(w, Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
+					sendReponse(w, Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
 				} else {
-					slog.Error("error inserting user in DB", "error", err)
-					SendReponse(w, Response{Error: "The user information could not be modified"}, http.StatusInternalServerError)
+					slog.Error(err.Error())
+					sendReponse(w, Response{Error: "The user information could not be modified"}, http.StatusInternalServerError)
 				}
 				return
 			} else {
-				slog.Info("SUCCES", "User updated", user)
-				SendReponse(w, Response{Data: user}, http.StatusOK)
+				slog.Info(fmt.Sprintf("User updated %v", user))
+				sendReponse(w, Response{Data: user}, http.StatusOK)
 			}
 		}
 	}
@@ -220,20 +203,19 @@ func Delete() http.HandlerFunc {
 		defer r.Body.Close()
 		userID := chi.URLParam(r, "id")
 
-		db := dbhandler.OpenDB()
-		err := db.Delete(userID)
+		err := repository.DeleteUser(userID)
 
 		if err != nil {
-			if errors.Is(err, &dberrors.DBNotFoundError{}) {
+			if errors.Is(err, &customerrors.NotFoundError{}) {
 				slog.Error("User was not found")
-				SendReponse(w, Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
+				sendReponse(w, Response{Error: "The user with the specified ID does not exist"}, http.StatusNotFound)
 			} else {
-				slog.Error("Operation error", "error", err)
-				SendReponse(w, Response{Error: "The user could not be removed"}, http.StatusInternalServerError)
+				slog.Error(err.Error())
+				sendReponse(w, Response{Error: "The user could not be removed"}, http.StatusInternalServerError)
 			}
 			return
 		}
 
-		slog.Info("SUCCES", "User removed", nil)
+		slog.Info("User removed successfully")
 	}
 }

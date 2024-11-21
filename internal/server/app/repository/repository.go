@@ -2,9 +2,12 @@ package repository
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	dbhandler "go-crud/internal/server/app/db/handler"
+	customerrors "go-crud/internal/server/app/errors"
 	"go-crud/internal/server/app/model"
+
+	"github.com/google/uuid"
 )
 
 func GetUserList() ([]model.User, error) {
@@ -19,7 +22,10 @@ func GetUserList() ([]model.User, error) {
 
 	for i, v := range data {
 		if err := json.Unmarshal([]byte(v), &users[i]); err != nil {
-			return users, errors.New("error converting the data from DB to JSON")
+			return users, &customerrors.JsonDecodingError{
+				Type: fmt.Sprintf("%T", users),
+				Err:  err,
+			}
 		}
 	}
 
@@ -37,8 +43,61 @@ func GetUser(userID string) (model.User, error) {
 
 	var user model.User
 	if err := json.Unmarshal([]byte(userString), &user); err != nil {
-		return model.User{}, errors.New("error converting the data from DB to JSON")
+		return model.User{}, &customerrors.JsonDecodingError{
+			Type: fmt.Sprintf("%T", user),
+			Err:  err,
+		}
 	}
 
 	return user, nil
+}
+
+func InsertUser(user *model.User) error {
+	intUUID := uuid.New()
+	userID := intUUID.String()
+	user.ID = userID
+
+	userJson, err := json.Marshal(user)
+	if err != nil {
+		return &customerrors.JsonEncodingError{
+			Type: fmt.Sprintf("%T", user),
+			Err:  err,
+		}
+	}
+
+	db := dbhandler.OpenDB()
+
+	if err := db.Insert(string(userJson)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UpdateUser(user *model.User) error {
+	userJson, err := json.Marshal(user)
+	if err != nil {
+		return &customerrors.JsonEncodingError{
+			Type: fmt.Sprintf("%T", user),
+			Err:  err,
+		}
+	}
+
+	db := dbhandler.OpenDB()
+
+	if err := db.Update(user.ID, string(userJson)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteUser(userID string) error {
+	db := dbhandler.OpenDB()
+
+	if err := db.Delete(userID); err != nil {
+		return err
+	} else {
+		return nil
+	}
 }
